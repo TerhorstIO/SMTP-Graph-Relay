@@ -3,3 +3,5 @@ dist
 .env
 package-lock.json
 SMTP-Relay.exe
+data/
+*.blob

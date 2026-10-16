@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Abhängigkeiten installieren
+        run: |
+          npm install
+          if (-not (Test-Path node_modules\esbuild\esbuild.exe)) { node node_modules\esbuild\install.js }
+
+      - name: EXE bauen
+        run: npm run package
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          notes="Windows-EXE aus Commit ${GITHUB_SHA}."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest SMTP-Relay.exe --clobber
+            gh release edit latest --target "${GITHUB_SHA}" --notes "${notes}"
+          else
+            gh release create latest SMTP-Relay.exe \
+              --title "SMTP-Graph-Relay" \
+              --notes "${notes}" \
+              --latest
+          fi
