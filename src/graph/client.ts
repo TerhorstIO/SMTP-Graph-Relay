@@ -1,6 +1,7 @@
 import { Client } from '@microsoft/microsoft-graph-client';
 import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
 import { ClientSecretCredential } from '@azure/identity';
+import { errorMessage } from '../errors';
 import { AppSettings } from '../settings';
 import { DeliveryLists } from '../mail/recipients';
 
@@ -21,13 +22,18 @@ export interface OutgoingMail {
 }
 
 let cached: { key: string; client: Client } | undefined;
+const warnedLookups = new Set<string>();
 
 export function extractEmail(sender: string): string {
     const match = sender.match(/<([^>]+)>/);
     return (match?.[1] || sender).trim();
 }
 
-export async function sendViaGraph(settings: AppSettings, mail: OutgoingMail): Promise<void> {
+export async function sendViaGraph(
+    settings: AppSettings,
+    mail: OutgoingMail,
+    warn?: (message: string) => void,
+): Promise<string | null> {
     const sender = extractEmail(settings.graphSender);
     if (!sender.includes('@')) {
         throw new Error('Absender für Graph ist nicht konfiguriert.');
@@ -72,7 +78,43 @@ export async function sendViaGraph(settings: AppSettings, mail: OutgoingMail): P
     }
 
     const client = clientFor(settings);
+    const displayName = await lookupDisplayName(client, sender, warn);
+    if (displayName) {
+        const from = { emailAddress: { address: sender, name: displayName } };
+        message.from = from;
+        message.sender = from;
+    }
     await client.api(`/users/${encodeURIComponent(sender)}/sendMail`).post({ message });
+    return displayName;
+}
+
+async function lookupDisplayName(
+    client: Client,
+    sender: string,
+    warn?: (message: string) => void,
+): Promise<string | null> {
+    try {
+        const user = await client
+            .api(`/users/${encodeURIComponent(sender)}`)
+            .select('displayName')
+            .get() as { displayName?: string };
+        const name = user.displayName?.trim() ?? '';
+        return name || null;
+    } catch (error) {
+        const key = sender.toLowerCase();
+        if (warn && !warnedLookups.has(key)) {
+            warnedLookups.add(key);
+            const status = typeof error === 'object' && error && 'statusCode' in error
+                ? Number((error as { statusCode?: number }).statusCode)
+                : 0;
+            if (status === 403) {
+                warn(`Anzeigename von ${sender} konnte nicht gelesen werden. Die App braucht die Anwendungsberechtigung User.Read.All mit Administratorzustimmung.`);
+            } else {
+                warn(`Anzeigename von ${sender} konnte nicht gelesen werden: ${errorMessage(error)}`);
+            }
+        }
+        return null;
+    }
 }
 
 function clientFor(settings: AppSettings): Client {

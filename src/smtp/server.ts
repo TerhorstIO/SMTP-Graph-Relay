@@ -4,7 +4,7 @@ import { certificateFilesReady, loadTlsMaterial } from '../certs';
 import { Db } from '../db/database';
 import { findSmtpUser, insertMessage, listEnabledCidrs, updateMessageStatus } from '../db/store';
 import { clip, errorMessage } from '../errors';
-import { sendViaGraph } from '../graph/client';
+import { extractEmail, sendViaGraph } from '../graph/client';
 import { Logger } from '../logger';
 import { selectRecipients } from '../mail/recipients';
 import { ipAllowed, normalizeIp } from '../net';
@@ -173,16 +173,17 @@ export class SmtpService {
             try {
                 const settings = getSettings(this.db);
                 const recipients = selectRecipients(meta.recipients, headerAddresses(parsed.to), headerAddresses(parsed.cc));
-                await sendViaGraph(settings, {
+                const displayName = await sendViaGraph(settings, {
                     subject: parsed.subject || '',
                     html: htmlBody,
                     text: textBody,
                     recipients,
                     attachments,
-                });
+                }, (message) => this.logger.warn(message));
                 updateMessageStatus(this.db, messageId, 'sent', null);
-                const sender = settings.graphSender;
-                this.logger.info(`Mail von ${meta.remoteIp} über ${sender} an ${meta.recipients.join(', ')} weitergeleitet`);
+                const sender = extractEmail(settings.graphSender);
+                const shown = displayName ? `${displayName} <${sender}>` : sender;
+                this.logger.info(`Mail von ${meta.remoteIp} über ${shown} an ${meta.recipients.join(', ')} weitergeleitet`);
                 finish();
             } catch (error) {
                 const message = clip(errorMessage(error));

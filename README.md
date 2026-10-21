@@ -91,9 +91,11 @@ Sind IP-Filter und Anmeldung beide aus, erscheint eine Warnung. Anmeldung ohne T
 1. Im [Azure-Portal](https://portal.azure.com/) unter App-Registrierungen eine neue Registrierung anlegen.
 2. Anwendungs-ID (Client) und Verzeichnis-ID (Tenant) von der Übersicht notieren.
 3. Unter Zertifikate & Geheimnisse ein Clientgeheimnis erstellen.
-4. Unter API-Berechtigungen `Mail.Send` als Anwendungsberechtigung hinzufügen und die Administratorzustimmung erteilen.
+4. Unter API-Berechtigungen diese Anwendungsberechtigungen hinzufügen und die Administratorzustimmung erteilen:
+   - `Mail.Send` zum Versenden
+   - `User.Read.All` zum Lesen des Anzeigenamens
 
-Diese drei Werte und das Postfach, über das gesendet wird, gehören in die Website unter Einstellungen. Das Postfach muss in dem Tenant existieren. Graph sendet immer als dieses Postfach, nicht als die Adresse aus `MAIL FROM`.
+Diese drei Werte und das Postfach, über das gesendet wird, gehören in die Website unter Einstellungen. Das Postfach muss in dem Tenant existieren. Graph sendet immer als dieses Postfach, nicht als die Adresse aus `MAIL FROM`. Der Absendername ist der Anzeigename des Postfachs in Microsoft 365. Ohne `User.Read.All` setzt Exchange stattdessen den E-Mail-Alias.
 
 ## EXE bauen
 
